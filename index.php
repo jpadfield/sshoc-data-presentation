@@ -1,17 +1,21 @@
 <?php
 
+// Used to allow the full model queries to run
+ini_set('memory_limit', '1024M'); // or you could use 1G
+#ini_set('max_execution_time', '60'); 
+
 include ("functions/functions_local.php");
   
 ////////////////////////////////////////////////////////////////////////
 
 // USED for Debugging  
 $console = array();
-
 //$console["_GET"] = $_GET;
 // $console["_POST"] = $_POST;
 //if (isset($console["_POST"]["password"])) 
 //  {$console["_POST"]["password"] = "HIDDEN VALUE";}
-$console = array();
+////////////////////////////////////////////////////////////////////////
+
 
 // Not used yet ////////////////////////////////////////////////////////
 if (!isset($_GET["theme"])) {$_GET["theme"] = "light";}
@@ -30,13 +34,51 @@ $pd =  array(
     
 $imod = getModal ("info");
 $emod = getModal ("examples", "", false);
+  
+  
+if (isset($_GET["pid"]))
+	{  
+  $q = $GLOBALS["searchPrefix"].'
+SELECT DISTINCT * WHERE {
+  ?thing ?op ?oo .
+OPTIONAL {
+  ?thing rdfs:label ?label_t . }
+OPTIONAL {
+  ?thing crm:P2_has_type ?tt .
+  ?tt rdfs:label ?label_tt . }
 
-if (isset($_POST["query"]))
+OPTIONAL {
+  ?oo rdfs:label ?label_o . }
+OPTIONAL {
+  ?oo crm:P2_has_type ?oot .
+  ?oot rdfs:label ?label_ot . }
+
+  ?is ?ip ?thing . 
+OPTIONAL {
+  ?is rdfs:label ?label_i . }
+OPTIONAL {
+  ?is crm:P2_has_type ?ist .
+  ?ist rdfs:label ?label_it . }
+
+FILTER ( ?thing = ng:'.$_GET["pid"].' ) .
+} LIMIT 100 ';
+
+  $nsp = $ep."/namespace/sshoc-combined";
+  $spep = $nsp."/sparql";
+    
+  $example = array(
+    "query" => $q,
+    "display" => false,
+    "name" => false);
+  }
+else if (isset($_POST["query"]))
   {
   if (preg_match ("/[#][\s]*use[\s]*[:][\s]*grounds/", $_POST["query"], $m))
     {$nsp = $ep."/namespace/sshoc-grounds";
      $spep = $nsp."/sparql";}
-    
+  else if (preg_match ("/[#][\s]*use[\s]*[:][\s]*combined/", $_POST["query"], $m))
+    {$nsp = $ep."/namespace/sshoc-combined";
+     $spep = $nsp."/sparql";}
    $example = array(
       "query" => $_POST["query"],
       "display" => false,
@@ -44,7 +86,7 @@ if (isset($_POST["query"]))
 else if (isset($_GET["query"]))
   {
   $s1 = str_replace (" ", "+", urldecode($_GET["query"]));
-  $gq = gzuncompress(base64_decode($s1));
+  $gq = gzuncompress(base64_decode($s1)); 
   if (preg_match ("/[#][\s]*use[\s]*[:][\s]*grounds/", $gq, $m))
     {$nsp = $ep."/namespace/sshoc-grounds";
      $spep = $nsp."/sparql";}
@@ -424,7 +466,7 @@ else
           <img src="https://research.ng-london.org.uk/iiif/pics/tmp/raphael_pyr/N-0027/14_Microscopy/14.1_Cross_Sections/35mm/27_S15_Mid-green_from_semi_circular_feature_RH_background_edge_x220-PYR.tif/pct:20,25,37.5,56/,192/0/default.jpg" class="float-end imgshadow rounded" alt="$im2c" title="$im2c"  style="margin:10px 0px 10px 10px;">
           <p>The second dataset, describe <a href="https://doi.org/10.5281/zenodo.5838339">here</a>, comes from another web-based digital platform, developed in the <a href="http://www.iperionch.eu/">IPERION-CH Horizon-2020 project</a> to present data in relation to the preparation layers used in 16​th​-century Italian paintings. This dataset has also been mapped to the CIDOC-CRM and linked to external vocabularies. At this time it has not yet been possible to fully open up the original web-based platform, but in relation to the work in this task a new version of it, complete with data and images released under a creative commons licence, has been created based on <a href="https://research.ng-london.org.uk/iperion-smk/">Italian and Dutch paintings from the collection of the National Gallery of Denmark (SMK)</a>.</p>
           
-          <p>Direct access to both of these datasets is provided via open SPARQL end-points. A series of detailed example queries, including some with subsequent presentation demonstrations have been provided on this site for the first dataset along with the ability to edit and create new queries. At this time access to the second dataset is provided via a simple example query, which can also be edited to create new bespoke queries and data presentations.</p>         
+          <p>Direct access to both of these datasets is provided via open <a href="https://en.wikipedia.org/wiki/SPARQL">SPARQL</a> end-points, which allows users to perform queries or searches using the SPARQL query language. A series of detailed example queries, including some with subsequent presentation demonstrations have been provided on this site for the first dataset along with the ability to edit and create new queries. These queries also act to demonstrate how the CIDOC CRM has been used to model the data. At this time access to the second dataset is provided via a simple example query, which can also be edited to create new bespoke queries and data presentations.</p>         
         </div>
       </div>
       <div class="row">

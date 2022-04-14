@@ -5,6 +5,11 @@ $ep = "https://rdf.ng-london.org.uk/bg/";
 $spep = "https://rdf.ng-london.org.uk/bg/bigdata/sparql";
 $nsp = $ep."/namespace/sshoc-raphael";
 $spep = $nsp."/sparql";
+$graphTitle = array (
+  "default" => false,
+  "raphael" => "Raphael Research Resource",
+  "grounds" => "IPERION-CH Grounds Database",
+  "combined" => "Combined Dataset: Raphael + IPERION-CH Grounds Data");
  	
 $onts = array ( 
     "rdfs"     => "http://www.w3.org/2000/01/rdf-schema#",  
@@ -21,7 +26,27 @@ $onts = array (
 $searchPrefix = "";    
 foreach ($onts as $key => $value) 
   {$searchPrefix .= "PREFIX ".$key.":<".$value.">\n";} 
-    
+
+// Not currently used
+function getEndpoint ($name)
+  {
+  global $ep;
+  
+  $lep = $ep."namespace/$name/sparql";
+  
+  $res = selectQuery ("SELECT DISTINCT (count(?entity) AS ?Entities) WHERE{ ?entity ?p ?o}");
+  prg(0, $res);
+  $res2 = selectQuery ("SELECT (COUNT(*) as ?Triples) WHERE { { ?s ?p ?o } }");
+  prg(1, $res2);
+  
+  $endpoints = array (
+    "endpoint" => $ep."namespace/$name/sparql",
+    "triples" => false,
+    "entites" => false,
+  );
+  
+  }
+  
 function selectQuery ($query="", $decode=true, $ep=false)
 	{
 	global $spep;
@@ -53,12 +78,6 @@ function selectQuery ($query="", $decode=true, $ep=false)
 	}
 
 
-	
-////////////////////////////////////////////////////////////////////////
-// function group: Generic variable and page building functions
-////////////////////////////////////////////////////////////////////////
-
-	
 function prg($exit=false, $alt=false, $noecho=false)
 	{
 	if ($alt === false) {$out = $GLOBALS;}
@@ -110,7 +129,12 @@ function SPARQLToTriples ($q)
   $triples = array();
   
   if (preg_match ( "/(.+)(SELECT[ DISTNC]*)(.+)(WHERE[^{]*{)(.+)(}[^}]*)$/", $q, $sq))
-    {        
+    {                
+    preg_match_all('/aat[:]([0-9]+)[\s]*([.;])/', $sq[5], $aat, PREG_OFFSET_CAPTURE);
+    
+    foreach ($aat[1] as $ak => $av)
+      {$sq[5] .= "\n  OPTIONAL {aat:$av[0] rdfs:label ?$av[0]_label .}";}
+      
     $nq = "$sq[1] $sq[2] * $sq[4] $sq[5] $sq[6]";
 
     $r = selectQuery ($nq);
@@ -123,8 +147,8 @@ function SPARQLToTriples ($q)
     $qvars = array();
         
     foreach ($lines as $k => $l)
-      {      
-      if (preg_match_all("/[?][a-z]+/", $l, $m))
+      { 
+      if (preg_match_all("/[?][a-zA-Z0-9_]+/", $l, $m))
         {
         foreach ($m[0] as $mk => $mv)
           {$mv = preg_replace("/\?/", "", $mv);
@@ -169,7 +193,7 @@ function SPARQLToTriples ($q)
           {$template[] = $ual3;}
         }        
       }
-   
+     
     // Remove the <> around URLs in the query
     foreach ($template as $tn => $t)
       {foreach ($t as $tn2 => $v)
@@ -193,7 +217,8 @@ function SPARQLToTriples ($q)
             else if ($a[$v]["type"] == "literal")
               {if (isset($a[$v]["xml:lang"])) {$suf = '@'.$a[$v]["xml:lang"];}
                else {$suf = "";}
-               $ct[$tn2] = '"'.$a[$v]["value"].'"'.$suf;}
+               $ev = strip_tags($a[$v]["value"]);
+               $ct[$tn2] = '"'.$ev.'"'.$suf;}
             else
               {
                // to catch errors
@@ -205,7 +230,7 @@ function SPARQLToTriples ($q)
           }
         
         // ignore triplets for optional variables in the template 
-        // which did not return a value
+        // which did not return a value      
         if (!$check[0] and isset($qvars[$ct[0]]))
           {$ct = false;}
         else if (!$check[2] and isset($qvars[$ct[2]]))
@@ -214,6 +239,8 @@ function SPARQLToTriples ($q)
         if ($ct)
           {
           $ct = checkPrefixes ($ct);
+          $ct[2] = preg_replace("/\r|\n/", "<br/>", $ct[2]);
+          //$ct[2] = json_encode ($ct[2]);
           $tl = implode("\t", $ct);
                   
           if (!in_array($tl, $triples))
@@ -222,7 +249,7 @@ function SPARQLToTriples ($q)
         }
       }
     }
-  
+
   $out = implode("\n", $triples);    
   return ($out);
   }
@@ -257,7 +284,7 @@ function exampleResults ($data)
   $data["json_link"] = './?query='.$data["encodedQuery"].'&format=json';
   
   $r = selectQuery ($data["query"], true); 
-  //prg(1, $r);
+
   $data["raw"] = $r;
   $data["json"] = json_encode ($r, JSON_UNESCAPED_SLASHES);
   $data["triples"] = SPARQLToTriples ($data["query"]);
@@ -375,22 +402,22 @@ END;
 function examplesGet ()
   {  
   $examples = array(  
-      "raphael" => array(
-       "custom" => array ( // UPDATED
-  "type" => "custom",
-  "name" => "custom", 
-  "display" => "Custom query example", 
-  "query" => $GLOBALS["searchPrefix"].'  
+    "raphael" => array(
+      "custom" => array ( // UPDATED
+        "type" => "custom",
+        "name" => "custom", 
+        "display" => "Custom query example", 
+        "query" => $GLOBALS["searchPrefix"].'  
 # Custom query example: Edit this basic SPARQL query to  create custom queries. 
 
 SELECT DISTINCT * WHERE {
   ?sub ?pre ?obj .
 } LIMIT 10 '),
-        "ng-paintings" => array ( // UPDATED
-          "type" => "simple",
-          "name" => "ng-paintings", 
-          "display" => "Find National Gallery paintings", 
-          "query" => $GLOBALS["searchPrefix"].'        
+      "ng-paintings" => array ( // UPDATED
+        "type" => "simple",
+        "name" => "ng-paintings", 
+        "display" => "Find National Gallery paintings", 
+        "query" => $GLOBALS["searchPrefix"].'        
 # Find National Gallery paintings
 
 SELECT DISTINCT ?pid ?title ?titletype WHERE {
@@ -401,12 +428,12 @@ SELECT DISTINCT ?pid ?title ?titletype WHERE {
   aat:300417208 rdfs:label ?titletype .
   ?y rdfs:label "The National Gallery Collection"@en .
 }'
-          ),
-        "painting-thumbnail" => array (
-          "type" => "simple",
-          "name" => "painting-thumbnail", 
-          "display" => "Finding painting thumbnail", 
-          "query" => $GLOBALS["searchPrefix"].'          
+        ),
+      "painting-thumbnail" => array (
+        "type" => "simple",
+        "name" => "painting-thumbnail", 
+        "display" => "Finding painting thumbnail", 
+        "query" => $GLOBALS["searchPrefix"].'          
 # Finding painting thumbnail
 
 SELECT ?painting ?invno ?thumb ?imagetype ?paintingtype WHERE {
@@ -427,12 +454,12 @@ SELECT ?painting ?invno ?thumb ?imagetype ?paintingtype WHERE {
 FILTER ( ?painting = ng:0FJS-0001-0000-0000 ) .
   
 } '
-          ),
-        "related-category" => array (
-          "type" => "simple",
-          "name" => "related-category", 
-          "display" => "Find related things by category", 
-          "query" => $GLOBALS["searchPrefix"].'          
+        ),
+      "related-category" => array (
+        "type" => "simple",
+        "name" => "related-category", 
+        "display" => "Find related things by category", 
+        "query" => $GLOBALS["searchPrefix"].'          
 # Find related things by category 
 # To find digital texts grouped by category the ?grouptype needs 
 # to be changed to aat:300424602 - digital document         
@@ -453,12 +480,12 @@ WHERE {
   FILTER ( ?gt = aat:300215302 ).
   
 } LIMIT 5  '
-          ),
-       "painting-x-rays" => array (
-          "type" => "simple",
-          "name" => "painting-x-rays", 
-          "display" => "Find x-ray images", 
-          "query" => $GLOBALS["searchPrefix"].'
+        ),
+      "painting-x-rays" => array (
+        "type" => "simple",
+        "name" => "painting-x-rays", 
+        "display" => "Find x-ray images", 
+        "query" => $GLOBALS["searchPrefix"].'
 # Find x-ray images
 
 SELECT ?v ?im ?thumb ?l WHERE {
@@ -478,12 +505,12 @@ SELECT ?v ?im ?thumb ?l WHERE {
   aat:300419323 rdfs:label ?l .
   
 } LIMIT 10'
-          ),
-       "artist-details" => array (
-          "type" => "simple",
-          "name" => "artist-details", 
-          "display" => "Find artist details", 
-          "query" => $GLOBALS["searchPrefix"].'
+        ),
+      "artist-details" => array (
+        "type" => "simple",
+        "name" => "artist-details", 
+        "display" => "Find artist details", 
+        "query" => $GLOBALS["searchPrefix"].'
 # Find artist details
 
 SELECT ?artist ?name ?birth_year ?death_year WHERE {
@@ -494,15 +521,14 @@ SELECT ?artist ?name ?birth_year ?death_year WHERE {
     ?bts rdfs:label ?birth_year .
 ?de crm:P4_has_time_span ?dts .
     ?dts rdfs:label ?death_year .
-  FILTER ( ?artist = ng:X49G-D5FL-LLD5-L23X ) .
+  FILTER ( ?name = "Raphael"@en ) .
 } '
-          ),
-        
-       "painting-details" => array (
-          "type" => "complex",
-          "name" => "painting-details", 
-          "display" => "Find painting details", 
-          "query" => $GLOBALS["searchPrefix"].'
+        ),
+      "painting-details" => array (
+        "type" => "complex",
+        "name" => "painting-details", 
+        "display" => "Find painting details", 
+        "query" => $GLOBALS["searchPrefix"].'
 # Find full painting details
 
 SELECT 
@@ -521,7 +547,10 @@ WHERE {
     crm:P102_has_title ?t  ;
     crm:P108i_was_produced_by ?pe;    
     crm:P109_has_current_or_former_curator ?cu .
-
+    
+  ?painting crm:P2_has_type ?ptt .
+  OPTIONAL {?ptt rdfs:label ?pttl . }.
+  
   ?cu rdfs:label ?curator .
 
   ?pe crm:P2_has_type  crm:E12_Production  ;
@@ -553,7 +582,13 @@ WHERE {
     rdfs:label ?title .
   
   ?c rdfs:label ?collection .
+  ?c crm:P2_has_type ?colt .
+  OPTIONAL {?colt rdfs:label ?coltl . }.
+  
   ?l  rdfs:label ?location .
+  ?l crm:P2_has_type ?lt .
+  OPTIONAL {?lt rdfs:label ?ltl . }.
+  
   ?o rdfs:label ?invno .
   
   ?vim crm:P138_represents ng:0FJS-0001-0000-0000 .
@@ -569,14 +604,12 @@ WHERE {
 FILTER ( ?painting = ng:0FJS-0001-0000-0000 ) .
   
 }  '
-          ),
-          
-        
-       "image-details" => array (
-          "type" => "complex",
-          "name" => "image-details", 
-          "display" => "Find image details", 
-          "query" => $GLOBALS["searchPrefix"].'
+        ),
+      "image-details" => array (
+        "type" => "complex",
+        "name" => "image-details", 
+        "display" => "Find image details", 
+        "query" => $GLOBALS["searchPrefix"].'
 # Find full image details
 SELECT 
 ?image ?filename ?height ?width 
@@ -604,7 +637,6 @@ WHERE {
   FILTER ( ?filename = "N-6596-00-000020.tif"@en  ) .
 } '
           ),
-        
        "text-details" => array (
           "type" => "complex",
           "name" => "text-details", 
@@ -634,7 +666,7 @@ OPTIONAL {
   ?tim crm:P48_has_preferred_identifier ?tbn .
   ?tbn rdf:value ?thumb . }
 
-  FILTER ( ?text = ng:9PUX-3338-MLWX-71XE ) . 
+  FILTER ( ?label = "Hofmann_Provenance_2008_NG1171_Part_II_0008"@en ) . 
 } '
           ),
           
@@ -697,7 +729,7 @@ OPTIONAL {
     }
 }
 
-FILTER ( ?text = ng:VPUB-TV40-5ON4-NIQE ) . 
+FILTER ( ?label = "Hofmann_Provenance_2008_NG1171_NG6480_Part_I_0001"@en  ) . 
  
 } LIMIT 20  '
           ),
@@ -878,11 +910,389 @@ OPTIONAL {
         }
       }  
     }
-  FILTER ( ?painting = ng:0EWJ-0001-0000-0000 &&  ?text = ng:0CKU-U2J4-2NG4-C58N  ).
+    FILTER ( ?painting = ng:0EWJ-0001-0000-0000 &&  ?label = "Hofmann_Provenance_2008_NG1171_Part_II"@en  ).
   } 
 ORDER BY ASC (?child_order) ASC (?childl2_order)
 LIMIT 50    '
-          ),
+          ),  
+      "object-full-model" => array (
+          "type" => "model",
+          "name" => "object-full-model", 
+          "display" => "Find Full Object Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full Object Mapping Model
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full object map
+
+SELECT DISTINCT
+  ?painting ?invno
+WHERE {
+  ?painting crm:P48_has_preferred_identifier ?o ;
+    crm:P53_has_former_or_current_location ?l ;
+    crm:P46i_forms_part_of ?c ; 
+    crm:P102_has_title ?st ;
+    crm:P43_has_dimension ?wd ;
+    crm:P43_has_dimension ?hd ;
+    crm:P46_is_composed_of ?ma ;
+    crm:P46_is_composed_of ?mb ;
+    crm:P102_has_title ?t  ;
+    crm:P108i_was_produced_by ?pe;    
+    crm:P109_has_current_or_former_curator ?cu .
+    
+  ?painting crm:P2_has_type ?ptt .
+  OPTIONAL {?ptt rdfs:label ?pttl . }.
+  
+  ?cu rdfs:label ?curator .
+
+  ?pe crm:P2_has_type  crm:E12_Production  ;
+     crm:P14_carried_out_by ?pa ;
+     crm:P4_has_time_span ?ts .
+  ?pa rdfs:label ?artist .
+  ?ts rdfs:label ?date .
+   
+  ?ma crm:P2_has_type ?mat ;
+    crm:P45_consists_of ?sm .  
+  ?sm crm:P2_has_type ?smt .
+  ?smt rdfs:label ?support .
+  
+  ?mb crm:P2_has_type ?mbt ;
+    crm:P45_consists_of ?mm .  
+  ?mm crm:P2_has_type ?mmt .
+  ?mmt rdfs:label ?medium .
+  
+  ?wd crm:P90_has_value ?width .
+  ?wd crm:P2_has_type aat:300055647  .
+  ?wd crm:P91_has_unit ?wunit .
+  ?wunit rdfs:label ?wunitl .
+  
+  ?hd crm:P90_has_value ?height .
+  ?hd crm:P2_has_type aat:300055644  .
+  ?hd crm:P91_has_unit ?hunit .
+  ?hunit rdfs:label ?hunitl .
+  
+  ?st crm:P2_has_type ?stt ;
+    rdfs:label ?shortTitle .
+  OPTIONAL {?stt rdfs:label ?sttl . }.
+
+  
+  ?t crm:P2_has_type ?ftt ;
+    rdfs:label ?title .
+  OPTIONAL {?ftt rdfs:label ?fttl . }.
+  
+  ?c rdfs:label ?collection .
+  ?c crm:P2_has_type ?colt .
+  OPTIONAL {?colt rdfs:label ?coltl . }.
+  
+  ?l  rdfs:label ?location .
+  ?l crm:P2_has_type ?lt .
+  OPTIONAL {?lt rdfs:label ?ltl . }.
+  
+  ?o rdfs:label ?invno .
+  ?o crm:P2_has_type ?ot .
+  OPTIONAL {?ot rdfs:label ?otl . }.
+  
+FILTER ( ?painting = ng:0D0E-0001-0000-0000 ) .
+  
+}   '
+          ),  
+      "artist-full-model" => array (
+          "type" => "model",
+          "name" => "artist-full-model", 
+          "display" => "Find Full Artist Event Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full Artist Event Mapping Model
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full artist event map
+
+SELECT DISTINCT ?artist ?name ?birth_year ?death_year WHERE {
+  ?artist rdfs:label ?name ;
+      crm:P2_has_type ?at ;
+      crm:P100i_died_in ?de ;
+      crm:P98i_was_born ?be .
+
+OPTIONAL { ?at rdfs:label ?atl . } .
+OPTIONAL { ?artist crm:P3_has_note ?note . } .
+OPTIONAL { 
+    ?artist crm:P1_is_identified_by ?id .
+    ?id rdfs:label ?idl .
+    OPTIONAL { ?id crm:P2_has_type ?idt .} .
+    } .
+
+?be crm:P4_has_time_span ?bts ;
+    crm:P2_has_type ?bet .
+    ?bts rdfs:label ?birth_year .
+
+OPTIONAL { 
+    ?bts crm:P2_has_type ?btst .
+    OPTIONAL { ?btst rdfs:label ?btstl . } .
+    } .
+OPTIONAL { ?bet rdfs:label ?betl . } .
+
+?de crm:P4_has_time_span ?dts ;
+    crm:P2_has_type ?det  .
+    ?dts rdfs:label ?death_year .
+
+OPTIONAL { ?det rdfs:label ?detl . } .
+OPTIONAL { 
+    ?dts crm:P2_has_type ?dtst .
+    OPTIONAL { ?dtst rdfs:label ?dtstl . } .
+    } .
+
+  FILTER ( ?name = "Raphael"@en ) .
+}    '
+          ),  
+      "image-full-model" => array (
+          "type" => "model",
+          "name" => "image-full-model", 
+          "display" => "Find Full Image Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full (Almost) Image Mapping Model
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the main image map
+
+SELECT DISTINCT 
+?image ?filename 
+WHERE {
+  ?image crm:P149_is_identified_by ?bn  ;
+      crm:P62_depicts ?t1 ;
+      crm:P65_shows_visual_item ?vim ;
+      dig:L56_has_pixel_width  ?width ;
+      dig:L57_has_pixel_height  ?height ;
+      crm:P43_has_dimension ?imdim ;
+      crm:P2_has_type ?imt .
+  OPTIONAL { 
+      ?image  crm:P70_is_documented_in ?cbn . 
+      ?cbn ?sdf ?cbnt .
+      OPTIONAL {  ?cbn rdfs:label ?caption .  } .
+      }
+
+  OPTIONAL { ?vim ?vimp ?vimv . } .
+
+  OPTIONAL { ?imt rdfs:label ?imtl . } .
+
+  ?bn rdfs:label ?filename  .  
+  ?bn crm:P2_has_type ?bnt  . 
+  OPTIONAL { ?bnt rdfs:label ?bntl . } . 
+
+  OPTIONAL { 
+      ?imdim ?imdimp ?imdimt .
+      OPTIONAL {?imdimt rdfs:label ?imdimtl . } .
+      }
+
+ OPTIONAL {
+   ?image  crm:P108i_was_produced_by ?pe .
+   OPTIONAL {
+      ?pe ?pep ?pev . 
+      OPTIONAL { ?pev rdfs:label ?pevl . } .
+      } .
+    } .
+
+  FILTER ( ?filename = "N-6596-00-000020.tif"@en  ) .
+} 
+   '
+          ),  
+      "image-pyramid-model" => array (
+          "type" => "model",
+          "name" => "image-pyramid-model", 
+          "display" => "Find Pyramid Image Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Pyramid Image Mapping Model
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full pyramid image map
+
+SELECT DISTINCT 
+?image ?filename
+WHERE {
+  ?image crm:P149_is_identified_by ?bn  ;
+      crm:P62_depicts ?t1 ;
+      crm:P65_shows_visual_item ?vim ;
+      dig:L56_has_pixel_width  ?width ;
+      dig:L57_has_pixel_height  ?height ;
+      crm:P43_has_dimension ?imdim ;
+      crm:P2_has_type ?imt .
+
+  OPTIONAL { ?vim ?vimp ?vimv . } .
+
+  OPTIONAL { ?imt rdfs:label ?imtl . } .
+
+  ?bn rdfs:label ?filename  .  
+  ?bn crm:P2_has_type ?bnt  . 
+  OPTIONAL { ?bnt rdfs:label ?bntl . } . 
+
+  ?e dig:L21_used_as_derivation_source ?image .
+  ?e dig:L23_used_software_or_firmware ?sv .
+  ?e crm:P2_has_type ?et .
+  ?e dig:L22_created_derivative ?pim .
+  ?pim crm:P2_has_type wd:Q3411251 .
+  ?pim crm:P43_has_dimension ?bnd .
+  ?bnd crm:P90_has_value ?levels .
+  ?pim crm:P149_is_identified_by ?pn .
+  ?pn rdfs:label ?pyramid .
+  ?pim crm:P70i_is_documented_in ?iiifinfo .
+
+    OPTIONAL {
+       ?sv  ?svp ?svo .
+       OPTIONAL {  ?svo rdfs:label ?svol .  } .
+    } .
+
+  FILTER ( ?filename = "N-6596-00-000020.tif"@en  ) .
+} 
+	
+   '
+          ),  
+      "sample-full-model" => array (
+          "type" => "model",
+          "name" => "sample-full-model", 
+          "display" => "Find Full Sample Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full Sample Mapping Model
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full sample map
+
+SELECT DISTINCT ?sample ?sampleLabel WHERE {
+  ?sample sci:O25i_is_contained_in ?painting  .
+  ?sample rdfs:label ?sampleLabel .
+  ?sample crm:P2_has_type ?sampleType . 
+  ?sample sci:O18i_was_altered_by ?embed .
+
+OPTIONAL { ?sampleType rdfs:label ?sampleTypeLabel . } .
+ ?painting crm:P102_has_title ?paintingTitle .
+ ?painting crm:P59_has_section ?sampleSite .
+ ?paintingTitle rdfs:label ?paintingTitleLabel .
+
+OPTIONAL { 
+    ?sampleSite crm:P2_has_type ?sst .
+    OPTIONAL {  ?sampleSite rdfs:label ?ssl . } .
+    OPTIONAL { ?sst rdfs:label ?sstl . } .
+    } .
+
+OPTIONAL {     
+    ?embed ?emp ?emv .
+    OPTIONAL { ?emv rdfs:label ?emvl . } .
+    } .
+
+  ?samevent sci:O5_removed ?sample ;
+      sci:O3_sampled_from ?painting ;
+      crm:P14_carried_out_by ?person ;
+      crm:P70_is_documented_in ?reason ;
+      crm:P2_has_type ?set ;
+      sci:O4_sampled_at ?sampleSite ;
+      rdfs:comment ?comment .
+
+ OPTIONAL { ?set rdfs:label ?setl . } .
+
+ OPTIONAL { 
+    ?reason ?rnp ?rnv .
+    OPTIONAL { ?rnv rdfs:label ?rnvl . } .
+    } .
+
+ OPTIONAL { 
+    ?person ?pnp ?pnv .
+    OPTIONAL { ?pnv rdfs:label ?pnvl . } .
+    } .
+
+ ?ime crm:P39_measured ?sample .
+
+ OPTIONAL { 
+    ?ime ?imep ?imev .
+    OPTIONAL { ?imev rdfs:label ?imevl . } .
+    OPTIONAL { 
+      ?imev crm:P149_is_identified_by ?imevid .
+      ?imevid  rdfs:label ?imevidl . } .
+   } .
+
+
+FILTER ( ?sampleLabel ="N-0027-00_inorganic_sample_012"@en )
+
+} LIMIT 100 
+	
+   '
+          ),  
+      "institution-full-model" => array (
+          "type" => "model",
+          "name" => "institution-full-model", 
+          "display" => "Find Full Institution Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full Institution Mapping Model
+# The institution identifier has the wrong type on it
+## It also might be good to just use an rdfs:label here.
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full institution map
+
+SELECT DISTINCT
+  ?painting ?location
+WHERE {
+  ?painting crm:P48_has_preferred_identifier ?o ;
+    crm:P53_has_former_or_current_location ?l ;
+    crm:P46i_forms_part_of ?c ; 
+    crm:P102_has_title ?st .
+    
+  ?st crm:P2_has_type aat:300417208 ;
+    rdfs:label ?shortTitle .
+    
+  ?c rdfs:label ?collection .
+  ?c crm:P2_has_type ?colt .
+  OPTIONAL { ?colt rdfs:label ?coltl . }.
+  
+  ?l  rdfs:label ?location .
+  ?l crm:P89_falls_within ?ng.
+  ?l crm:P2_has_type ?lt .
+  OPTIONAL { ?lt rdfs:label ?ltl . }.
+  
+  ?ng crm:P53_has_former_or_current_location ?city .
+  ?ng crm:P48_has_preferred_identifier ?ngid .
+
+  ?ng crm:P2_has_type ?ngType .
+  OPTIONAL {  ?ngType rdfs:label ?ngTypel . }.
+  
+  ?ngid crm:P2_has_type ?ngidType .
+  ?ngid rdfs:label ?ngidl .
+  OPTIONAL {  ?ngidType rdfs:label ?ngidTypel . }.
+
+   ?city crm:P2_has_type ?cityType .
+   ?city rdfs:label ?cityName .
+
+  ?o rdfs:label ?invno .
+  ?o crm:P2_has_type ?oType .
+  OPTIONAL {  ?oType rdfs:label ?oTypel . }.
+
+  
+FILTER ( ?painting = ng:0FJS-0001-0000-0000 ) .
+  
+} 
+	
+   '
+          ),  
+      "document-full-model" => array (
+          "type" => "model",
+          "name" => "document-full-model", 
+          "display" => "Find Full Document Model", 
+          "query" => $GLOBALS["searchPrefix"].'
+# Full Document Mapping Model
+# The actual live file path is not current included in the mapping
+# The crm:P165_incorporates leads to a symbolic object which is not exploited yet.
+
+# Returned variables have been simplified to speed up the query
+# View the graphical model to see the full document map
+
+SELECT DISTINCT 
+?doc ?label
+WHERE {
+  ?doc ?p ?o .
+  ?doc crm:P43_has_dimension ?ddim .
+  ?doc  rdfs:label ?label .
+  ?doc crm:P67_refers_to ?thing .
+OPTIONAL { ?o rdfs:label ?ol . } .
+?ddim ?dp ?dt .
+OPTIONAL { ?dt rdfs:label ?dtl . } .
+OPTIONAL { ?thing crm:P48_has_preferred_identifier ?thingID .
+ ?thingID rdfs:label ?invno . } .
+
+filter ( ?label = "Technical_Bulletin_25_2004_4-35"@en ) .
+} 
+	
+   '
+          )
         ),
       "grounds" => array(
         "custom-2" => array ( // UPDATED
@@ -903,20 +1313,24 @@ SELECT DISTINCT * WHERE {
   return ($examples);
   }
 
-function examplesList ($which="raphael")
+function examplesList ($which="default")
   {
+  global $graphTitle;
+  
   $examples = examplesGet ();
   $use = $examples[$which];
   
   $sim = "";
   $com = "";
   $dis = "";
+  $mod = "";
   $cus = "";
-  
-  if ($which=="grounds")
-    {$head = "<h5>IPERION-CH Grounds Database</h5>";}
+   
+  if (isset($graphTitle[$which]))
+    {$head = "<h5>$graphTitle[$which]</h5>";}
   else
-    {$head = "<h5>Raphael Research Resource</h5>";}
+    {$head = "<h5>Other Examples</h5>";}
+  
   foreach ($use as $key => $a) 
     {if ($a["type"] == "simple") 
       {$sim .= formatExampleLink ($a["name"], $a["display"]);}
@@ -924,8 +1338,10 @@ function examplesList ($which="raphael")
       {$cus .= formatExampleLink ($a["name"], $a["display"]);}
      else if ($a["type"] == "complex") 
       {$com .= formatExampleLink ($a["name"], $a["display"]);}
-     else 
-      {$dis .= formatExampleLink ($a["name"], $a["display"]);}}
+     else if ($a["type"] == "display")  
+      {$dis .= formatExampleLink ($a["name"], $a["display"]);}
+     else if ($a["type"] == "model")  
+      {$mod .= formatExampleLink ($a["name"], $a["display"]);}}
  
   if ($sim)
     {$sim = "<h6>Simple Example Queries</h6><ul>".$sim."</ul>";}
@@ -936,10 +1352,13 @@ function examplesList ($which="raphael")
   if ($dis)
     {$dis = "<h6>Display Examples</h6><ul>".$dis."</ul>";}  
     
+  if ($mod)
+    {$mod = "<h6>Mapping Model Examples</h6><ul>".$mod."</ul>";}  
+    
   if ($cus)
     {$cus = "<h6>Build Custom Query</h6><ul>".$cus."</ul>";}
       
-  return ($head.$sim.$com.$dis.$cus);
+  return ($head.$sim.$com.$dis.$mod.$cus);
   }
   
 function formatExampleLink ($name, $display)
@@ -1042,13 +1461,23 @@ function getModal ($which, $default="", $close=true)
       https://END-POINT-URL?format=json&query=FULLESCAPEDSPARQLQUERY
     </p>
     
-    <p>A series of example SPARQL queries are presented, for data set one, to document how the datasets are organised and the various relationships that have been mapped to the CIDOC CRM. A simple default query is also presented, for both of the data sets, to allow new bespoke queries to be created. The queries pages are organised into two main sections; the SPARQL query on the left and the results, formatted as JSON, presented on the right. Three additional interaction options are also provided through the small icons in the upper right:
-    
+    <p>A series of example SPARQL queries are presented, for data set one, to document how the datasets are organised and the various relationships that have been mapped to the CIDOC CRM. A simple default query is also presented, for both of the data sets, to allow new bespoke queries to be created. The queries pages are organised into two main sections; the SPARQL query on the left and the results, formatted as JSON, presented on the right. Three additional interaction options are also provided through the small icons in the upper right:</p> 
+
     <ul class="list-group list-group-flush">
-      <li class="list-group-item"><span class="text-primary"><i class="bi bi-eye"></i></span> - Re-format the results and present the defined relationships as a graphic model (see below).</li>
-      <li class="list-group-item"><span class="text-primary"><i class="bi bi-share"></i></span> - A shareable link for the current query presentation webpage - including bespoke queries.</li>
-      <li class="list-group-item"><span class="text-primary"><i class="bi bi-filetype-json"></i></span> - A direct shareable link to a simple json version of the results of the current query - including bespoke queries.</li>
-    </ul></p>
+      <li class="list-group-item" style="background-color: #f8f9fa;"><span class="text-primary"><i class="bi bi-eye"></i></span> - Re-format the results and present the defined relationships as a graphic model (see below).</li>
+      <li class="list-group-item" style="background-color: #f8f9fa;"><span class="text-primary"><i class="bi bi-share"></i></span> - A shareable link for the current query presentation webpage - including bespoke queries.</li>
+      <li class="list-group-item" style="background-color: #f8f9fa;"><span class="text-primary"><i class="bi bi-filetype-json"></i></span> - A direct shareable link to a simple json version of the results of the current query - including bespoke queries.</li>
+    </ul><br/>
+    
+    <table class="table">
+      <tbody>
+        <tr>
+          <td><span class="text-primary">Website Code:</span></td>
+          <td><a href="https://github.com/jpadfield/sshoc-data-presentation">GitHub</a></td>
+        </tr>
+      </tbody>
+    </table>
+      
     
     <h6>Data set 1: The Raphael Research Resource</h6>
     <p>In 2007 the <a href="https://cima.ng-london.org.uk/documentation">Raphael Research Resource</a> project began to examine how complex conservation, scientific and art historical research could be combined in a flexible digital form. Exploring the presentation of interrelated high resolution images and text, along with how the data could be stored in relation to an event driven ontology in the form of <a href="http://www.w3.org/TR/rdf-concepts/">RDF triples</a>. The original <a href="https://cima.ng-london.org.uk/documentation">main user interface</a> is still live and the data stored within the system is presented here in the form of <a href="http://en.wikipedia.org/wiki/Linked_Data">open linkable data</a> combined with a <a href="http://en.wikipedia.org/wiki/SPARQL">SPARQL</a> end-point.</p>
@@ -1062,13 +1491,13 @@ function getModal ($which, $default="", $close=true)
           <td><span class="text-primary">Classes:</span></td>
           <td>36</td>
           <td><span class="text-primary">Properties:</span></td>
-          <td>98</td>
+          <td>69</td>
         </tr>
         <tr>
           <td><span class="text-primary">Entities:</span></td>
-          <td>40766</td>
+          <td>40915</td>
           <td><span class="text-primary">Triples:</span></td>
-          <td>411173</td>
+          <td>414401</td>
         </tr>
         <tr>
           <td><span class="text-primary">Ontologies:</span></td>
@@ -1078,9 +1507,9 @@ function getModal ($which, $default="", $close=true)
         </tr>
         <tr>
           <td><span class="text-primary">Mapping Code:</span></td>
-          <td>GitHub</td>
+          <td><a href="https://github.com/jpadfield/sshoc_raphael_modelling">GitHub</a></td>
           <td><span class="text-primary">Original GUI:</span></td>
-          <td>Link</td>
+          <td><a href="https://cima.ng-london.org.uk/documentation">Link</a></td>
         </tr>
       </tbody>
     </table>
@@ -1113,9 +1542,31 @@ function getModal ($which, $default="", $close=true)
         </tr>
         <tr>
           <td><span class="text-primary">Mapping Code:</span></td>
-          <td>GitHub</td>
+          <td><a href="https://github.com/jpadfield/sshoc_grounds_modelling">GitHub</a></td>
           <td><span class="text-primary">Original GUI:</span></td>
-          <td>Link</td>
+          <td><a href="https://research.ng-london.org.uk/iperion/">Link</a></td>
+        </tr>
+      </tbody>
+    </table>
+    
+    
+    <h6>Data set 3: The SMK Grounds Database (Not searchable here)</h6>
+    <p>The work carried out within T5.6 of SSHOC also provided technical support for the production of a new open version of the Grounds Database, with all of its content made re-usable under a defined creative-commons licences. A generous grant from The Samuel H. <a href="https://www.kressfoundation.org/">Kress Foundation</a> for the project "The digitization of cross-sections from Italian and Dutch paintings" at <a href="https://www.smk.dk/">The National Gallery of Denmark (SMK)</a> enabled the digitization and analyses of cross-sections from a total of 158 Italian 14th to 17th C. and 17th C. Dutch paintings from the SMK collection to be made available in this open access art and technology research database on ground layers. With samples from the collections of <a href="https://www.nationalmuseum.se/en/om-nationalmuseum">Nationalmuseum Stockholm</a> and Museum of National History, <a href="https://dnm.dk/en/">Frederiksborg Castle in Hillerød</a> the database includes an additional 11 paintings. Effort within the SSHOC project re-formatted the provided data and enabled it to be presented within the IPERION-CH Grounds Database GUI. Further work was also carried out to open up this data to non specialists, allowing access to the same images via a simple keyword search option, though a Simple IIIF Discovery site, the development of which was supported by the AHRC funded Practical IIIF project, the SSHOC project.<a href="https://www.iperionhs.eu/">H2020 IPERION HS</a> project and the </p>
+    <table class="table">
+      <tbody>
+        <tr>
+          <td><span class="text-primary">IIIF Discovery End-point:</span></td>
+          <td colspan="3">https://research.ng-london.org.uk/smk/</td>
+        </tr>
+        <tr>
+          <td><span class="text-primary">Full Website:</span></td>
+          <td><a href="https://research.ng-london.org.uk/iperion-smk/">Link</a></td>
+          <td><span class="text-primary">Simple IIIF Discovery Website:</span></td>
+          <td><a href="https://research.ng-london.org.uk/ss-smk/">Link</a></td>
+        </tr>
+        <tr>
+          <td><span class="text-primary">Simple IIIF Discovery Code:</span></td>
+          <td><a href="https://github.com/jpadfield/iiif-discovery">GitHub</a></td>
         </tr>
       </tbody>
     </table>
@@ -1123,14 +1574,16 @@ function getModal ($which, $default="", $close=true)
 
     <h6>The Dynamic Modeller</h6>
     <p>Initially in response to restrictions imposed by COVID-19 a <a href="https://research.ng-london.org.uk/modelling/">live, online, dynamic, modelling system</a> was developed to facilitate the collaborative development of semantic models and flow diagrams within SSHOC, but also within other related research projects such as the <a href="https://linked.art/">Linked.Art</a> project and the <a href="https://www.iperionhs.eu/">H2020 IPERION HS</a> research project.​ This is an interactive modelling system which can automatically convert simple tab separated triples or JSON-LD into graphical models using the <a href="https://mermaid-js.github.io/">mermaid library</a>. To improve the accessibility and understanding of these presented data sets the output of each of the SPARQL queries, including bespoke queries, can be automatically formatted and modelled using the dynamic modeller. This can be achieved by clicking on the small "eye" icon in the upper right corer of any of the SPARQL query pages.</p>
-    
-    <h6>GitHub Code Repository</h6>
-    <ul class="list-group list-group-flush">
-      <li class="list-group-item"><span class="text-dark">Website Code:</span> <a href="https://github.com/jpadfield/sshoc-data-presentation">Link</a></li>
-      <li class="list-group-item"><span class="text-dark">Raphael Mapping Code:</span> <a href="https://github.com/jpadfield/sshoc_raphael_modelling">Link</a></li>
-      <li class="list-group-item"><span class="text-dark">Grounds Mapping Code:</span> <a href="https://github.com/jpadfield/sshoc_grounds_modelling">Link</a></li>
-    </ul>
-    
+    <table class="table">
+      <tbody>
+        <tr>
+          <td><span class="text-primary">Full Website:</span></td>
+          <td><a href="https://research.ng-london.org.uk/modelling/">Link</a></td>
+          <td><span class="text-primary">Website Code:</span></td>
+          <td><a href="https://github.com/jpadfield/dynamic-modelling">GitHub</a></td>
+        </tr>
+      </tbody>
+    </table>    
   </div>
 '),
     "examples" => array (
@@ -1290,6 +1743,7 @@ function buildPage ($pd=array())
   {
   global $theme;
   
+  $root = "https://rdf.ng-london.org.uk/sshoc";
   $dpd =  array(
     "title" => "Page Title",
     "body" => "Page Body",
@@ -1309,7 +1763,7 @@ function buildPage ($pd=array())
       </div>
       <div class="col-md-2 col-3 flex-shrink-1 align-items-center d-flex mb-3">
           <div class="box w-100 text-primary">
-            <a href="https://sshopencloud.eu/"><img class="float-end me-3 img-fluid" src="https://rdf.ng-london.org.uk/sshoc/graphics/sshoc-logo.png" alt="SSHOC" style="max-height:41px;width:auto;"></a>          
+            <a href="https://sshopencloud.eu/"><img class="float-end me-3 img-fluid" src="$root/graphics/sshoc-logo.png" alt="SSHOC" style="max-height:41px;width:auto;"></a>          
           </div>  
       </div>
       <div class="col-md-2 col-3 flex-shrink-1 align-items-center d-flex mb-3">
@@ -1339,7 +1793,7 @@ END;
           <footer class="footer mt-auto border-top border-2">
             <div class="container-fluid">
               <div class="row">
-                <div class="col-3" style="text-align:left;"><a href="https://www.nationalgallery.org.uk/terms-of-use"><img height="16" alt="© The National Gallery 2021" title="© The National Gallery 2021" src="graphics/copyright-NG.png"></a></div>
+                <div class="col-3" style="text-align:left;"><a href="https://www.nationalgallery.org.uk/terms-of-use"><img height="16" alt="© The National Gallery 2021" title="© The National Gallery 2021" src="$root/graphics/copyright-NG.png"></a></div>
                 <div class="col-1" style="text-align:center;"></div>
                 <div class="col-8" style="text-align:right;"><a href="https://rightsstatements.org/page/NoC-NC/1.0/?language=en"><img height="16" alt="In Copyright - Educational Use Permitted" title="In Copyright - Educational Use Permitted" src="https://rightsstatements.org/files/buttons/NoC-NC.dark-white-interior.svg"></a>&nbsp;&nbsp;<a rel="license" href="https://creativecommons.org/licenses/by-nc/4.0/"><img alt="Creative Commons Licence" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png"></a></div>
               </div>
@@ -1366,7 +1820,7 @@ END;
 		<meta name="keywords" content="SSHOC, The National Gallery, London, National Gallery London, Scientific, Research, Heritage, Culture, JSON, PHP, Javascript, Dissemination, VRE, IIIF, Discovery, OpenSeadragon" />
     <meta name="author" content="Joseph Padfield| joseph.padfield@ng-london.org.uk |National Gallery | London UK | website@ng-london.org.uk |www.nationalgallery.org.uk" />
     <meta name="image" content="" />
-    <link rel="shortcut icon" href="graphics/favicon.png" type="image/png" />
+    <link rel="shortcut icon" href="$root/graphics/favicon.png" type="image/png" />
     <title>SSHOC: Making Heritage Science Data FAIR</title>
     
     <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.3/css/all.min.css" integrity="sha256-2H3fkXt6FEmrReK448mDVGKb3WW2ZZw35gI7vqHOE4Y=" crossorigin="anonymous" rel="stylesheet" type="text/css">
@@ -1379,7 +1833,7 @@ END;
 	
     <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.2.0/styles/github.css" integrity="sha256-Oppd74ucMR5a5Dq96FxjEzGF7tTw2fZ/6ksAqDCM8GY=" crossorigin="anonymous" rel="stylesheet" type="text/css">		
     
-    <link href="css/main.css" rel="stylesheet" type="text/css">
+    <link href="$root/css/main.css" rel="stylesheet" type="text/css">
     
      <style>
     </style>
@@ -1417,7 +1871,7 @@ END;
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha256-9SEPo+fwJFpMUet/KACSwO+Z/dKMReF9q4zFhU/fT9M=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jquery.json-viewer@1.4.0/json-viewer/jquery.json-viewer.js" integrity="sha256-klSHtWPkZv4zG4darvDEpAQ9hJFDqNbQrM+xDChm8Fo=" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.2.0/build/highlight.min.js"></script>	
-<script src="javascript/json_viewer.js"></script>	
+<script src="$root/javascript/json_viewer.js"></script>	
 <script>
 
 
