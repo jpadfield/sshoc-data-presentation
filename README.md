@@ -1,4 +1,6 @@
-# sshoc-data-presentation
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6462987.svg)](https://doi.org/10.5281/zenodo.6462987)
+# SSHOC - SPARQL Endpoint Presentation Example
+
 SPARQL Endpoint query and data presentation examples for the SSHOC Heritage Science Datasets 
 
 This code is used to create the [National Gallery SSHOC Data Site](https://rdf.ng-london.org.uk/sshoc/), which presents data formatted as part of a task entitled '''Issues in providing Open Data in Heritage Science''' (T5.6) within the [SSHOC Horizon-2020 project](https://www.sshopencloud.eu/). This work, led by the [National Gallery](https://www.nationalgallery.org.uk/), has explored increasing the accessibility and interoperability of existing Heritage Science data sets and making them more [FAIR](https://www.go-fair.org/fair-principles/).
